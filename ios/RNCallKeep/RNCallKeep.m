@@ -41,6 +41,7 @@ static NSString *const RNCallKeepDidLoadWithEvents = @"RNCallKeepDidLoadWithEven
     BOOL _isStartCallActionEventListenerAdded;
     bool _hasListeners;
     NSMutableArray *_delayedEvents;
+    bool _isSetup;
 }
 
 static CXProvider* sharedProvider;
@@ -55,7 +56,7 @@ RCT_EXPORT_MODULE()
 #endif
     if (self = [super init]) {
         _isStartCallActionEventListenerAdded = NO;
-        _delayedEvents = [NSMutableArray array];
+        if (_delayedEvents == nil) _delayedEvents = [NSMutableArray array];
     }
     return self;
 }
@@ -118,10 +119,11 @@ RCT_EXPORT_MODULE()
     if (_hasListeners) {
         [self sendEventWithName:name body:body];
     } else {
-        NSDictionary *dictionary = @{
-            @"name": name,
-            @"data": body
-        };
+        NSDictionary *dictionary = [NSDictionary dictionaryWithObjectsAndKeys:
+            name, @"name",
+            body, @"data",
+            nil
+        ];
         [_delayedEvents addObject:dictionary];
     }
 }
@@ -133,8 +135,20 @@ RCT_EXPORT_MODULE()
     }
 }
 
++ (void)setup:(NSDictionary *)options {
+    RNCallKeep *callKeep = [RNCallKeep allocWithZone: nil];
+    [callKeep setup:options];
+}
+
 RCT_EXPORT_METHOD(setup:(NSDictionary *)options)
 {
+    if (_isSetup) {
+#ifdef DEBUG
+        NSLog(@"[RNCallKeep][setup] already setup");
+#endif
+        return;
+    }
+    
 #ifdef DEBUG
     NSLog(@"[RNCallKeep][setup] options = %@", options);
 #endif
@@ -149,6 +163,8 @@ RCT_EXPORT_METHOD(setup:(NSDictionary *)options)
 
     self.callKeepProvider = sharedProvider;
     [self.callKeepProvider setDelegate:self queue:nil];
+    
+    _isSetup = YES;
 }
 
 RCT_REMAP_METHOD(checkIfBusy,
@@ -183,7 +199,7 @@ RCT_EXPORT_METHOD(displayIncomingCall:(NSString *)uuidString
                       supportsHolding:(BOOL)supportsHolding
                          supportsDTMF:(BOOL)supportsDTMF
                      supportsGrouping:(BOOL)supportsGrouping
-                   supportsUngrouping:(BOOL)supportsUngrouping)            
+                   supportsUngrouping:(BOOL)supportsUngrouping)
 {
     [RNCallKeep reportNewIncomingCall: uuidString
                                handle: handle
